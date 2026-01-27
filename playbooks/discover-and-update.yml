@@ -1,0 +1,32 @@
+---
+# Playbook: Discover Docker containers and update Proxmox notes with Traefik labels
+# Usage: ansible-playbook playbooks/discover-and-update.yml -i inventory/my.proxmox.yml
+
+- name: Discover Docker containers and update Proxmox notes with Traefik labels
+  hosts: exposed
+  gather_facts: false
+
+  vars:
+    proxmox_api_host: "192.168.1.113"
+    proxmox_api_user: "root@pam"
+    proxmox_api_token_id: "ansible"
+    # Token directly from my.proxmox.yml
+    proxmox_api_token_secret: "caa6e758-754d-4056-9687-3727e7c22e22"
+
+    # Gateway mode configuration
+    gateway_mode: "passthrough"  # Options: 'filter' or 'passthrough'
+    traefik_local_port: 8080
+    gateway_service_name: "homelab-traefik"
+
+  pre_tasks:
+    - name: Display execution info
+      debug:
+        msg: "Starting Traefik labels discovery on {{ inventory_hostname }} (VMID {{ proxmox_vmid }})"
+
+  roles:
+    - docker_traefik_discovery
+
+  post_tasks:
+    - name: Final summary
+      debug:
+        msg: "Completed Proxmox notes update for {{ ansible_play_hosts | length }} host(s)"

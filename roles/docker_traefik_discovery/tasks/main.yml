@@ -1,0 +1,96 @@
+---
+# Docker Traefik Discovery Role - Main Tasks
+# Discovers Docker containers with Traefik labels and updates Proxmox notes
+
+- name: Check if Docker is installed
+  command: docker --version
+  register: docker_check
+  failed_when: false
+  changed_when: false
+
+- name: Skip host if Docker not installed
+  meta: end_host
+  when: docker_check.rc != 0
+
+- name: Copy inspect-docker.sh script to target host
+  copy:
+    src: inspect-docker.sh
+    dest: /tmp/inspect-docker.sh
+    mode: '0755'
+
+- name: Execute Docker inspection script
+  command: bash /tmp/inspect-docker.sh
+  register: docker_inspection
+  changed_when: false
+
+- name: Parse JSON output from Docker inspection
+  set_fact:
+    docker_data: "{{ docker_inspection.stdout | from_json }}"
+
+- name: Debug - Display Docker data structure
+  debug:
+    var: docker_data
+    verbosity: 1
+
+- name: Debug - Display labels from first container
+  debug:
+    var: docker_data.containers[0].labels
+  when: docker_data.containers is defined and docker_data.containers | length > 0
+
+- name: Initialize label list
+  set_fact:
+    all_traefik_labels: []
+
+- name: Extract all Traefik labels from all containers
+  set_fact:
+    all_traefik_labels: "{{ all_traefik_labels + item.labels }}"
+  loop: "{{ docker_data.containers }}"
+  when: docker_data.containers is defined and docker_data.containers | length > 0
+
+- name: Display discovered labels count
+  debug:
+    msg: "Found {{ all_traefik_labels | default([]) | length }} Traefik labels across {{ docker_data.containers | default([]) | length }} containers"
+
+- name: Parse and format labels for Proxmox
+  parse_docker_labels:
+    labels: "{{ all_traefik_labels }}"
+    vmid: "{{ proxmox_vmid }}"
+    gateway_mode: "{{ gateway_mode | default('filter') }}"
+    traefik_local_port: "{{ traefik_local_port | default(8080) }}"
+    gateway_service_name: "{{ gateway_service_name | default('homelab-traefik') }}"
+  register: formatted_labels
+  when: all_traefik_labels is defined and all_traefik_labels | length > 0
+
+- name: Display formatted labels summary
+  debug:
+    msg: "Parsed {{ formatted_labels.labels_count | default(0) }} labels ({{ formatted_labels.parsed_labels.routers | default({}) | length }} routers, {{ formatted_labels.parsed_labels.services | default({}) | length }} services, {{ formatted_labels.parsed_labels.middlewares | default({}) | length }} middlewares)"
+  when: formatted_labels is defined and not formatted_labels.skipped | default(false)
+
+- name: Update Proxmox notes via API
+  uri:
+    url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ proxmox_node }}/qemu/{{ proxmox_vmid }}/config"
+    method: PUT
+    headers:
+      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+    body_format: json
+    body:
+      description: "{{ formatted_labels.proxmox_notes }}"
+    validate_certs: false
+    status_code: 200
+  when: formatted_labels is defined and not formatted_labels.skipped | default(false)
+  register: proxmox_update
+
+- name: Display success message
+  debug:
+    msg: "Updated Proxmox notes for {{ inventory_hostname }} (VMID {{ proxmox_vmid }}) with {{ formatted_labels.labels_count }} Traefik labels"
+  when: proxmox_update is defined and not proxmox_update.skipped | default(false)
+
+- name: Display skip message if no labels found
+  debug:
+    msg: "No Traefik labels found on {{ inventory_hostname }}, skipping Proxmox update"
+  when: all_traefik_labels is not defined or all_traefik_labels | length == 0
+
+- name: Cleanup temporary script
+  file:
+    path: /tmp/inspect-docker.sh
+    state: absent

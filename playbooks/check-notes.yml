@@ -1,0 +1,26 @@
+---
+# Quick playbook to check Proxmox notes
+- name: Check Proxmox notes
+  hosts: exposed
+  gather_facts: false
+
+  vars:
+    proxmox_api_host: "192.168.1.113"
+    proxmox_api_user: "root@pam"
+    proxmox_api_token_id: "ansible"
+    proxmox_api_token_secret: "caa6e758-754d-4056-9687-3727e7c22e22"
+
+  tasks:
+    - name: Get Proxmox VM config
+      uri:
+        url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ proxmox_node }}/qemu/{{ proxmox_vmid }}/config"
+        method: GET
+        headers:
+          Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+        validate_certs: false
+        status_code: 200
+      register: vm_config
+
+    - name: Display notes/description
+      debug:
+        var: vm_config.json.data.description

@@ -1,4 +1,11 @@
 /inventory
+/.vault_pass.txt
+*.vault_pass.txt
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
 
 # ignore roles pulled by ansible-galaxy
 /roles/galaxy/*
