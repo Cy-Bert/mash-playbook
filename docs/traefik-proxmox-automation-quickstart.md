@@ -2,6 +2,8 @@
 
 Guide condensé pour démarrer rapidement avec le système de découverte Traefik-Proxmox.
 
+Ce système fonctionne avec [**Traefik Proxmox Provider**](https://github.com/NX211/traefik-proxmox-provider) pour une configuration automatique du Gateway Traefik.
+
 ## Installation en 5 minutes
 
 ### 1. Créer un API Token Proxmox
@@ -45,6 +47,83 @@ pvesh set /nodes/NODENAME/qemu/VMID/config -tags exposed
 ```bash
 ansible-playbook playbooks/discover-and-update.yml -i inventory/my.proxmox.yml
 ```
+
+### 5. Installer Traefik Proxmox Provider sur le Gateway
+
+Voir [Configuration Gateway](#configuration-gateway-traefik) ci-dessous pour l'installation complète.
+
+## Configuration Gateway Traefik
+
+### Installation rapide du Proxmox Provider
+
+Sur votre Gateway Traefik (VPS/Cloud), créer `docker-compose.yml` :
+
+```yaml
+version: '3'
+
+services:
+  traefik:
+    image: traefik:latest
+    container_name: traefik-gateway
+    restart: unless-stopped
+
+    ports:
+      - "80:80"
+      - "443:443"
+
+    environment:
+      - PROXMOX_ENDPOINT=https://VOTRE-IP-PROXMOX:8006/api2/json
+      - PROXMOX_USERNAME=root@pam
+      - PROXMOX_TOKEN_NAME=ansible
+      - PROXMOX_TOKEN_VALUE=VOTRE-TOKEN-ICI
+      - PROXMOX_INSECURE_SKIP_VERIFY=true
+      - PROXMOX_POLL_INTERVAL=30s
+
+    volumes:
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./acme.json:/etc/traefik/acme.json
+
+    command:
+      - "--providers.docker=false"
+      - "--experimental.plugins.proxmox.modulename=github.com/NX211/traefik-proxmox-provider"
+      - "--experimental.plugins.proxmox.version=v0.2.0"
+```
+
+Créer `traefik.yml` :
+
+```yaml
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: votre.email@example.com
+      storage: /etc/traefik/acme.json
+      httpChallenge:
+        entryPoint: web
+
+experimental:
+  plugins:
+    proxmox:
+      moduleName: "github.com/NX211/traefik-proxmox-provider"
+      version: "v0.2.0"
+```
+
+Démarrer :
+
+```bash
+touch acme.json && chmod 600 acme.json
+docker-compose up -d
+```
+
+**Le Gateway Traefik va maintenant automatiquement** :
+1. Lire les notes Proxmox toutes les 30s
+2. Détecter les labels Traefik
+3. Configurer les routes automatiquement
 
 ## Commandes essentielles
 
@@ -207,15 +286,26 @@ mash-playbook/
 
 ## Checklist de déploiement
 
-- [ ] API Token Proxmox créé
+### Côté Proxmox/Ansible
+
+- [ ] API Token Proxmox créé avec permissions `VM.Audit` et `Sys.Audit`
 - [ ] Inventaire `inventory/my.proxmox.yml` configuré
 - [ ] Clés SSH configurées pour accès aux VMs
 - [ ] VMs taguées avec `exposed`
 - [ ] Docker installé sur les VMs
 - [ ] Utilisateur `ansible` existe sur les VMs avec accès Docker
-- [ ] Gateway Traefik configuré pour lire les notes Proxmox
 - [ ] Tests unitaires passent (`python3 tests/test_label_parsing.py`)
-- [ ] Premier run réussi
+- [ ] Premier run Ansible réussi
+
+### Côté Gateway Traefik
+
+- [ ] Traefik Gateway déployé (VPS/Cloud)
+- [ ] Proxmox Provider installé et configuré
+- [ ] Variables d'environnement Proxmox configurées
+- [ ] Let's Encrypt configuré
+- [ ] Ports 80/443 ouverts sur le firewall
+- [ ] Logs du provider affichent la connexion Proxmox réussie
+- [ ] Test d'accès : `curl -I https://votre-domaine.com`
 
 ## Variables importantes
 
@@ -227,28 +317,54 @@ mash-playbook/
 | `proxmox_api_host` | - | IP/hostname Proxmox |
 | `proxmox_api_token_secret` | - | Token API Proxmox |
 
-## Intégration avec Traefik Gateway
+## Vérification de l'intégration
 
-Le Gateway Traefik doit être configuré pour lire les notes Proxmox. Exemple avec File Provider :
+### Test complet end-to-end
 
-```yaml
-# Sur le Gateway, créer un script qui :
-# 1. Récupère les notes Proxmox via API
-# 2. Convertit en configuration Traefik
-# 3. Écrit dans /etc/traefik/dynamic/
+```bash
+# 1. Sur Ansible : Mettre à jour les notes Proxmox
+ansible-playbook playbooks/discover-and-update.yml -i inventory/my.proxmox.yml
 
-# Exemple de cron :
-*/5 * * * * /usr/local/bin/sync-proxmox-to-traefik.sh
+# 2. Vérifier les notes
+ansible-playbook playbooks/check-notes.yml -i inventory/my.proxmox.yml
+
+# 3. Sur le Gateway : Vérifier les logs du provider
+docker logs traefik-gateway 2>&1 | grep -i proxmox
+
+# Devrait afficher :
+# - "Connected to Proxmox API"
+# - "Found X VMs with Traefik labels"
+# - "Updated Traefik configuration"
+
+# 4. Tester l'accès depuis Internet
+curl -I https://homelab.cy-bert.fr/miniflux
+
+# Devrait retourner : HTTP/2 200
 ```
+
+### Workflow automatisé (optionnel)
+
+Pour automatiser la mise à jour :
+
+```bash
+# Créer un cron pour exécuter Ansible toutes les heures
+crontab -e
+
+# Ajouter :
+0 * * * * cd /opt/mash/mash-playbook && ansible-playbook playbooks/discover-and-update.yml -i inventory/my.proxmox.yml >> /var/log/traefik-sync.log 2>&1
+```
+
+**Note** : Le Proxmox Provider poll déjà toutes les 30s, donc pas besoin de cron très fréquent. Une fois par heure ou manuellement suffit.
 
 ## Prochaines étapes
 
-1. ✅ Configuration initiale
+1. ✅ Configuration initiale Ansible
 2. ✅ Premier run réussi
-3. 📖 Lire la [documentation complète](traefik-proxmox-automation.md)
-4. 🔧 Configurer le Gateway Traefik pour lire les notes
-5. 🔄 Automatiser avec un cron/systemd timer
-6. 📊 Monitorer les changements
+3. ✅ Gateway Traefik avec Proxmox Provider installé
+4. 📖 Lire la [documentation complète](traefik-proxmox-automation.md)
+5. 🔄 Optionnel : Automatiser avec cron
+6. 📊 Monitorer les logs du provider
+7. 🚀 Ajouter plus de services dans vos containers Docker
 
 ## Ressources
 
