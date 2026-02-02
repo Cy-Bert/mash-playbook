@@ -69,7 +69,7 @@
   name: backup_borg
   activation_prefix: backup_borg_
 - src: git+https://seed.radicle.garden/z3JDUHjeHMqbZ3YLxquSUbCmAJLi.git
-  version: v5.12.0-0
+  version: v5.13.0-1
   name: barassistant
   activation_prefix: barassistant_
 - src: git+https://seed.radicle.garden/z2bgVhWju6shYSwtdKb7v3eoSL1Pt.git
@@ -225,7 +225,7 @@
   name: fider
   activation_prefix: fider_
 - src: git+https://seed.radicle.garden/z318zbpe2RNjFqVzXqPoDDJvvohbw.git
-  version: v2.56.0-0
+  version: v2.57.0-0
   name: filebrowser
   activation_prefix: filebrowser_
 - src: git+https://seed.radicle.garden/z3ALGSKDhVLeMnR49YPXk5yv2yTge.git
@@ -241,7 +241,7 @@
   name: flaresolverr
   activation_prefix: flaresolverr_
 - src: git+https://github.com/mother-of-all-self-hosting/ansible-role-fmd-server.git
-  version: v0.13.0-2
+  version: v0.14.0-0
   name: fmd_server
   activation_prefix: fmd_server_
 - src: git+https://github.com/mother-of-all-self-hosting/ansible-role-focalboard.git
@@ -429,7 +429,7 @@
   name: mailcrab
   activation_prefix: mailcrab_
 - src: git+https://seed.radicle.garden/z3BKJz8wwtQHfXm8MPX81h4izT2QS.git
-  version: v1.28.4-0
+  version: v1.29.0-0
   name: mailpit
   activation_prefix: mailpit_
 - src: git+https://github.com/mother-of-all-self-hosting/ansible-role-mariadb.git
@@ -573,7 +573,7 @@
   name: ots
   activation_prefix: ots_
 - src: git+https://seed.radicle.garden/zvzJe15VMBkGd2CMBctvpVZgmQG5.git
-  version: v2.16.0-0
+  version: v2.17.0-0
   name: otterwiki
   activation_prefix: otterwiki_
 - src: git+https://github.com/mother-of-all-self-hosting/ansible-role-outline.git
@@ -889,7 +889,7 @@
   name: vikunja
   activation_prefix: vikunja_
 - src: git+https://seed.radicle.garden/z3NoFEkNtQQjSGjLvweqwCFPbC59R.git
-  version: v5.15.2.0-0
+  version: v5.15.2.1-0
   name: weblate
   activation_prefix: weblate_
 - src: git+https://github.com/spatterIight/ansible-role-wetty.git
