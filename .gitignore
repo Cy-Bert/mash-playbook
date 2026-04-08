@@ -7,6 +7,9 @@ __pycache__/
 *.pyc
 *.pyo
 
+# ignore files created by running pre-commit locally
+.ansible
+
 # ignore roles pulled by ansible-galaxy
 /roles/galaxy/*
 !/roles/galaxy/.gitkeep
@@ -23,6 +26,8 @@ __pycache__/
 
 /run/*
 !/run/.gitkeep
+
+/var/
 
 /group_vars/*
 !/group_vars/.gitkeep
